@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import sqlite3
 from dotenv import load_dotenv
 import re
+from flask import Flask
+import threading
 
 # Load environment variables from .env file
 load_dotenv()
@@ -38,7 +40,7 @@ def get_main_keyboard():
     keyboard = [
         [KeyboardButton("/start"), KeyboardButton("/claim")],
         [KeyboardButton("/invite"), KeyboardButton("/request_withdraw")],
-        [KeyboardButton("/balance"), KeyboardButton("/referrals"), KeyboardButton("/cancel")]
+        [KeyboardButton("/balance"), KeyboardButton("/cancel")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -164,16 +166,6 @@ async def check_balance(update: Update, context: CallbackContext) -> None:
     else:
         await update.message.reply_text('You need to claim tokens first using /claim.')
 
-async def check_referrals(update: Update, context: CallbackContext) -> None:
-    user_id = update.message.from_user.id
-    c.execute('SELECT invites FROM users WHERE user_id=?', (user_id,))
-    row = c.fetchone()
-    if row:
-        invites = row[0]
-        await update.message.reply_text(f'You have {invites} referrals.')
-    else:
-        await update.message.reply_text('You are not registered yet. Please use /start to register.')
-
 async def cancel(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Withdrawal request canceled.')
     return ConversationHandler.END
@@ -188,7 +180,6 @@ def main() -> None:
         BotCommand("invite", "Get your invite link"),
         BotCommand("request_withdraw", "Request a token withdrawal"),
         BotCommand("balance", "Check your token balance"),
-        BotCommand("referrals", "Check your referral count"),
         BotCommand("cancel", "Cancel the current operation")
     ]
     application.bot.set_my_commands(commands)
@@ -198,7 +189,6 @@ def main() -> None:
     application.add_handler(CommandHandler("claim", claim))
     application.add_handler(CommandHandler("invite", invite))
     application.add_handler(CommandHandler("balance", check_balance))
-    application.add_handler(CommandHandler("referrals", check_referrals))
     application.add_handler(CommandHandler("cancel", cancel))
 
     # Conversation handler for withdraw requests
@@ -213,7 +203,16 @@ def main() -> None:
     )
     application.add_handler(conv_handler)
 
-    application.run_polling()
+    # Start the bot in a separate thread
+    threading.Thread(target=application.run_polling).start()
+
+# Flask app to keep the bot running
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
 
 if __name__ == '__main__':
     main()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
