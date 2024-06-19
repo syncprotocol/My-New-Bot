@@ -38,7 +38,7 @@ def get_main_keyboard():
     keyboard = [
         [KeyboardButton("/start"), KeyboardButton("/claim")],
         [KeyboardButton("/invite"), KeyboardButton("/request_withdraw")],
-        [KeyboardButton("/balance"), KeyboardButton("/cancel")]
+        [KeyboardButton("/balance"), KeyboardButton("/referrals"), KeyboardButton("/cancel")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -164,6 +164,16 @@ async def check_balance(update: Update, context: CallbackContext) -> None:
     else:
         await update.message.reply_text('You need to claim tokens first using /claim.')
 
+async def check_referrals(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    c.execute('SELECT invites FROM users WHERE user_id=?', (user_id,))
+    row = c.fetchone()
+    if row:
+        invites = row[0]
+        await update.message.reply_text(f'You have {invites} referrals.')
+    else:
+        await update.message.reply_text('You are not registered yet. Please use /start to register.')
+
 async def cancel(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text('Withdrawal request canceled.')
     return ConversationHandler.END
@@ -178,6 +188,7 @@ def main() -> None:
         BotCommand("invite", "Get your invite link"),
         BotCommand("request_withdraw", "Request a token withdrawal"),
         BotCommand("balance", "Check your token balance"),
+        BotCommand("referrals", "Check your referral count"),
         BotCommand("cancel", "Cancel the current operation")
     ]
     application.bot.set_my_commands(commands)
@@ -187,6 +198,7 @@ def main() -> None:
     application.add_handler(CommandHandler("claim", claim))
     application.add_handler(CommandHandler("invite", invite))
     application.add_handler(CommandHandler("balance", check_balance))
+    application.add_handler(CommandHandler("referrals", check_referrals))
     application.add_handler(CommandHandler("cancel", cancel))
 
     # Conversation handler for withdraw requests
