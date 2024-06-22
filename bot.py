@@ -61,7 +61,11 @@ async def claim(update: Update, context: CallbackContext) -> None:
     if row:
         balance, last_claim, invites = row
 
-        if last_claim is None or now - datetime.strptime(last_claim, '%Y-%m-%d %H:%M:%S') > timedelta(days=1):
+        # Convert last_claim from string to datetime object if it exists
+        last_claim_date = datetime.strptime(last_claim, '%Y-%m-%d %H:%M:%S') if last_claim else None
+
+        # Check if the user can claim tokens today
+        if last_claim_date is None or now - last_claim_date > timedelta(days=1):
             claim_amount = DAILY_LIMIT + invites * TOKEN_INCREASE_PER_INVITE
             new_balance = balance + claim_amount
             c.execute('UPDATE users SET balance=?, last_claim=? WHERE user_id=?', (new_balance, now.strftime('%Y-%m-%d %H:%M:%S'), user_id))
@@ -137,9 +141,11 @@ async def confirm_withdraw(update: Update, context: CallbackContext) -> None:
     wallet = context.user_data['withdraw_wallet']
     withdraw_amount = context.user_data['withdraw_amount']
     now = datetime.now()
+    
     try:
         c.execute('SELECT balance FROM users WHERE user_id=?', (user_id,))
         row = c.fetchone()
+        
         if row:
             balance = row[0]
             new_balance = balance - withdraw_amount
@@ -152,6 +158,7 @@ async def confirm_withdraw(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         logger.error(f"Error processing withdrawal: {e}")
         await update.message.reply_text(f'An error occurred. Please try again. Error details: {e}')
+    
     return ConversationHandler.END
 
 async def check_balance(update: Update, context: CallbackContext) -> None:
